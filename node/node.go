@@ -582,6 +582,8 @@ func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, freezer,
 
 	var db ethdb.Database
 	var err error
+	// add
+	n.config.DataDir = ""
 	if n.config.DataDir == "" {
 		db = rawdb.NewMemoryDatabase()
 	} else {

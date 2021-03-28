@@ -25,6 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/metrics"
 )
 
 var (
@@ -43,14 +44,28 @@ var (
 type Database struct {
 	db   map[string][]byte
 	lock sync.RWMutex
+
+	// add
+	memdbReadMeter  metrics.Meter
+	memdbWriteMeter metrics.Meter
 }
 
 // New returns a wrapped map with all the required database interface methods
 // implemented.
 func New() *Database {
-	return &Database{
+	// return &Database{
+	// 	db: make(map[string][]byte),
+	// }
+
+	// add
+	memdb := &Database{
 		db: make(map[string][]byte),
 	}
+
+	memdb.memdbReadMeter = metrics.NewRegisteredMeter("memorydb/disk/read", nil)
+	memdb.memdbWriteMeter = metrics.NewRegisteredMeter("memorydb/disk/write", nil)
+
+	return memdb
 }
 
 // NewWithCap returns a wrapped map pre-allocated to the provided capcity with
@@ -80,6 +95,8 @@ func (db *Database) Has(key []byte) (bool, error) {
 		return false, errMemorydbClosed
 	}
 	_, ok := db.db[string(key)]
+	//add
+	//db.memdbReadMeter.Mark(1)
 	return ok, nil
 }
 
@@ -92,6 +109,8 @@ func (db *Database) Get(key []byte) ([]byte, error) {
 		return nil, errMemorydbClosed
 	}
 	if entry, ok := db.db[string(key)]; ok {
+		//add
+		db.memdbReadMeter.Mark(int64(len(entry)))
 		return common.CopyBytes(entry), nil
 	}
 	return nil, errMemorydbNotFound
@@ -106,6 +125,8 @@ func (db *Database) Put(key []byte, value []byte) error {
 		return errMemorydbClosed
 	}
 	db.db[string(key)] = common.CopyBytes(value)
+	//add
+	db.memdbWriteMeter.Mark(int64(len(value)))
 	return nil
 }
 
@@ -231,6 +252,8 @@ func (b *batch) Write() error {
 			continue
 		}
 		b.db.db[string(keyvalue.key)] = keyvalue.value
+		//add
+		b.db.memdbWriteMeter.Mark(int64(len(keyvalue.value)))
 	}
 	return nil
 }
